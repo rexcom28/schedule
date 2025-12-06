@@ -23,9 +23,9 @@ CHECK_OCCURRENCE_PERM_FUNC = getattr(settings, "CHECK_OCCURRENCE_PERM_FUNC", Non
 if not CHECK_OCCURRENCE_PERM_FUNC:
 
     def check_occurrence_permission(ob, user):
+        if ob is None:
+            return False
         return CHECK_EVENT_PERM_FUNC(ob.event, user)
-
-    CHECK_OCCURRENCE_PERM_FUNC = check_occurrence_permission
 
 CALENDAR_VIEW_PERM = getattr(settings, "CALENDAR_VIEW_PERM", False)
 

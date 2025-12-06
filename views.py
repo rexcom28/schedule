@@ -49,7 +49,66 @@ from schedule.utils import (
     check_occurrence_permissions,
     coerce_date_dict,
 )
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import ListView
 
+class CalendarList(LoginRequiredMixin, ListView):
+    model = Calendar
+    # template_name = 'schedule/calendar_list.html'
+    template_name = 'v2/calendar_list.html'
+    context_object_name = 'object_list'
+    def get_queryset(self):
+        """Filtrar calendarios por empresa del usuario"""
+        user = self.request.user
+        
+        # if user.is_superuser:
+        #     # Superusuarios ven todos los calendarios
+        #     return Calendar.objects.all()
+        
+        # Usuarios normales solo ven calendarios de su empresa
+        if hasattr(user, 'profile') and user.profile.empresa:
+            return Calendar.objects.filter(empresa=user.profile.empresa)
+        
+        # Si no tiene empresa asignada, no ve ningún calendario
+        return Calendar.objects.none()
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        if hasattr(self.request.user, 'profile'):
+            context['empresa_usuario'] = self.request.user.profile.empresa
+        
+        calendars = context['object_list']
+        
+        total_events = 0
+        total_active_events = 0
+        total_past_events = 0
+        total_upcoming_occurrences = 0
+        
+        for calendar in calendars:
+            events_count = calendar.events.count()
+            active_count = calendar.get_active_events_count()
+            
+            print(f"📅 Calendar: {calendar.name}")
+            print(f"   Total eventos: {events_count}")
+            print(f"   Activos: {active_count}")
+            
+            total_events += events_count
+            total_active_events += active_count
+            total_past_events += calendar.get_past_events_count()
+            total_upcoming_occurrences += calendar.get_upcoming_occurrences_count(days=30)
+        
+        print(f"\n🎯 TOTALES:")
+        print(f"   Total events: {total_events}")
+        print(f"   Active: {total_active_events}")
+        
+        context['total_events'] = total_events
+        context['total_active_events'] = total_active_events
+        context['total_past_events'] = total_past_events
+        context['total_upcoming_occurrences'] = total_upcoming_occurrences
+        
+        return context
+    
 
 class CalendarViewPermissionMixin:
     @classmethod
@@ -100,7 +159,7 @@ class FullCalendarView(CalendarMixin, DetailView):
         return context
 
 
-class CalendarByPeriodsView(CalendarMixin, DetailView):
+class CalendarByPeriodsView(LoginRequiredMixin, CalendarMixin, DetailView):
     template_name = "schedule/calendar_by_period.html"
 
     def get_context_data(self, **kwargs):
@@ -194,37 +253,78 @@ class EventEditMixin(CancelButtonMixin, EventEditPermissionMixin, EventMixin):
 
 
 class EventView(EventMixin, DetailView):
-    template_name = "schedule/event.html"
+    # template_name = "schedule/event.html"
+    template_name = "v2/event.html"
 
 
 class EditEventView(EventEditMixin, UpdateView):
     form_class = EventForm
-    template_name = "schedule/create_event.html"
+    # template_name = "schedule/create_event.html"
+    template_name = "v2/create_event.html"
+    
+    def get_context_data(self, **kwargs):
+        """Agregar calendario al contexto"""
+        context = super().get_context_data(**kwargs)
+        context['calendar'] = self.object.calendar
+        return context
+    
+    # def form_valid_OLD(self, form):
+    #     event = form.save(commit=False)
+    #     old_event = Event.objects.get(pk=event.pk)
+    #     dts = datetime.timedelta(
+    #         minutes=int((event.start - old_event.start).total_seconds() / 60)
+    #     )
+    #     dte = datetime.timedelta(
+    #         minutes=int((event.end - old_event.end).total_seconds() / 60)
+    #     )
+    #     event.occurrence_set.all().update(
+    #         original_start=F("original_start") + dts,
+    #         original_end=F("original_end") + dte,
+    #     )
+    #     event.save()
+    #     return super().form_valid(form)
 
     def form_valid(self, form):
+        """Actualizar evento y sus occurrences"""
         event = form.save(commit=False)
         old_event = Event.objects.get(pk=event.pk)
+        
+        # Calcular diferencias de tiempo
         dts = datetime.timedelta(
             minutes=int((event.start - old_event.start).total_seconds() / 60)
         )
         dte = datetime.timedelta(
             minutes=int((event.end - old_event.end).total_seconds() / 60)
         )
+        
+        # Actualizar occurrences existentes
         event.occurrence_set.all().update(
             original_start=F("original_start") + dts,
             original_end=F("original_end") + dte,
         )
+        
         event.save()
-        return super().form_valid(form)
-
+        
+        # Determinar URL de redirección
+        next_url = self.request.GET.get('next')
+        if next_url:
+            return HttpResponseRedirect(next_url)
+        
+        # Por defecto, ir al calendario del día del evento
+        return HttpResponseRedirect(
+            reverse('day_calendar', args=[event.calendar.slug]) + 
+            f'?year={event.start.year}&month={event.start.month}&day={event.start.day}'
+        )
 
 class CreateEventView(EventEditMixin, CreateView):
     form_class = EventForm
-    template_name = "schedule/create_event.html"
+    template_name = "v2/create_event.html"  # ← Template modernizado
 
     def get_initial(self):
+        """Prepoblar fechas desde query params"""
         date = coerce_date_dict(self.request.GET)
-        initial_data = None
+        initial_data = {}
+        
         if date:
             try:
                 start = datetime.datetime(**date)
@@ -232,18 +332,65 @@ class CreateEventView(EventEditMixin, CreateView):
                     "start": start,
                     "end": start + datetime.timedelta(minutes=30),
                 }
-            except TypeError:
-                raise Http404
-            except ValueError:
-                raise Http404
+            except (TypeError, ValueError):
+                # Si hay error en las fechas, usar valores por defecto
+                pass
+        
         return initial_data
+    
+    def get_context_data(self, **kwargs):
+        """Agregar calendario al contexto"""
+        context = super().get_context_data(**kwargs)
+        context['calendar'] = get_object_or_404(
+            Calendar, 
+            slug=self.kwargs["calendar_slug"]
+        )
+        return context
 
     def form_valid(self, form):
+        """Guardar evento con calendario y creador"""
         event = form.save(commit=False)
         event.creator = self.request.user
-        event.calendar = get_object_or_404(Calendar, slug=self.kwargs["calendar_slug"])
+        event.calendar = get_object_or_404(
+            Calendar, 
+            slug=self.kwargs["calendar_slug"]
+        )
         event.save()
-        return HttpResponseRedirect(event.get_absolute_url())
+        
+        # Determinar URL de redirección
+        next_url = self.request.GET.get('next')
+        if next_url:
+            return HttpResponseRedirect(next_url)
+        
+        # Por defecto, ir al calendario del día del evento
+        return HttpResponseRedirect(
+            reverse('day_calendar', args=[event.calendar.slug]) + 
+            f'?year={event.start.year}&month={event.start.month}&day={event.start.day}'
+        )
+    # template_name = "schedule/create_event.html"
+
+    # def get_initial(self):
+    #     date = coerce_date_dict(self.request.GET)
+    #     initial_data = None
+    #     if date:
+    #         try:
+    #             start = datetime.datetime(**date)
+    #             initial_data = {
+    #                 "start": start,
+    #                 "end": start + datetime.timedelta(minutes=30),
+    #             }
+    #         except TypeError:
+    #             raise Http404
+    #         except ValueError:
+    #             raise Http404
+    #     return initial_data
+
+    # def form_valid(self, form):
+    #     event = form.save(commit=False)
+    #     event.creator = self.request.user
+    #     event.calendar = get_object_or_404(Calendar, slug=self.kwargs["calendar_slug"])
+    #     event.save()
+    #     return HttpResponseRedirect(event.get_absolute_url())
 
 
 class DeleteEventView(EventEditMixin, DeleteView):

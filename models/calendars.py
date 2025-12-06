@@ -9,7 +9,8 @@ from django.utils.translation import gettext_lazy as _
 
 from schedule.settings import USE_FULLCALENDAR
 from schedule.utils import EventListManager
-
+from django.utils import timezone
+from datetime import timedelta
 
 class CalendarManager(models.Manager):
     """
@@ -101,6 +102,11 @@ class CalendarManager(models.Manager):
             calendarrelation__content_type=ct,
             calendarrelation__object_id=obj.id,
         )
+    
+    # NUEVO: Manager para filtrar por empresa
+    def for_empresa(self, empresa):
+        """Retorna calendarios de una empresa específica"""
+        return self.filter(empresa=empresa)
 
 
 class Calendar(models.Model):
@@ -137,18 +143,71 @@ class Calendar(models.Model):
     >>> event.save()
     >>> calendar.events.add(event)
     """
-
+    # ============ CAMPO NUEVO: RELACIÓN CON EMPRESA ============
+    empresa = models.ForeignKey(
+        'Clientes.ConfiguracionEmpresa',  # Importación lazy para evitar circular imports
+        on_delete=models.CASCADE,
+        related_name='calendarios',
+        verbose_name=_("Empresa"),
+        help_text=_("Empresa a la que pertenece este calendario"),
+        null=True,  # Temporal para migración
+        blank=True
+    )
+    # ============================================================
+    
     name = models.CharField(_("name"), max_length=200)
-    slug = models.SlugField(_("slug"), max_length=200, unique=True)
+    slug = models.SlugField(_("slug"), max_length=200)
     objects = CalendarManager()
 
     class Meta:
         verbose_name = _("calendar")
         verbose_name_plural = _("calendars")
+        
+        # Slug único por empresa
+        unique_together = [['empresa', 'slug']]
+        ordering = ['empresa', 'name']
 
     def __str__(self):
+        if self.empresa:
+            return f"{self.name} ({self.empresa.razon_social})"
         return self.name
-
+    def get_active_events_count(self):
+        """
+        Retorna cantidad de eventos con occurrences futuras.
+        Un evento está activo si tiene al menos una occurrence desde hoy en adelante.
+        """
+        now = timezone.now()
+        future = now + timedelta(days=365)  # Buscar en el próximo año
+        
+        active_count = 0
+        for event in self.events.all():
+            # Si el evento tiene al menos una occurrence futura, está activo
+            if event.get_occurrences(now, future):
+                active_count += 1
+        
+        return active_count
+    
+    def get_past_events_count(self):
+        """
+        Retorna cantidad de eventos que ya pasaron (sin occurrences futuras).
+        """
+        return self.events.count() - self.get_active_events_count()
+    
+    def get_upcoming_occurrences_count(self, days=30):
+        """
+        Retorna cantidad total de occurrences en los próximos X días.
+        Útil para saber cuántos eventos hay programados próximamente.
+        """
+        now = timezone.now()
+        future = now + timedelta(days=days)
+        
+        total_occurrences = 0
+        for event in self.events.all():
+            occurrences = event.get_occurrences(now, future)
+            total_occurrences += len(occurrences)
+        
+        return total_occurrences
+        
     @property
     def events(self):
         return self.event_set

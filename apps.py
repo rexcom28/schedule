@@ -6,3 +6,6 @@ class ScheduleConfig(AppConfig):
     name = "schedule"
     verbose_name = _("Schedules")
     default_auto_field = "django.db.models.AutoField"
+
+    def ready(self):
+        import schedule.signals

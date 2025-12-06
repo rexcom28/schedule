@@ -19,6 +19,170 @@ from schedule.settings import (
 
 register = template.Library()
 
+# ============================================
+# TEMPLATE FILTERS PERSONALIZADOS
+# ============================================
+
+@register.filter
+def minutes_since_midnight(dt):
+    """
+    Calcula pixeles desde el top (1 minuto = 1 pixel).
+    Maneja timezone-aware datetimes correctamente.
+    """
+    if not dt:
+        return 0
+    
+    # Si es timezone-aware, convertir a la zona horaria local
+    if timezone.is_aware(dt):
+        # Convertir a timezone local del settings
+        local_dt = timezone.localtime(dt)
+        return local_dt.hour * 60 + local_dt.minute
+    
+    # Si es naive, usar directamente
+    return dt.hour * 60 + dt.minute
+
+@register.filter  
+def duration_in_minutes(start, end):
+    """
+    Calcula altura del evento en pixeles. Mínimo 20px para clickear.
+    Maneja timezone-aware datetimes correctamente.
+    """
+    if not start or not end:
+        return 20
+    
+    # Si son timezone-aware, convertir a timezone local
+    if timezone.is_aware(start) and timezone.is_aware(end):
+        local_start = timezone.localtime(start)
+        local_end = timezone.localtime(end)
+        duration = (local_end - local_start).total_seconds() / 60
+    else:
+        duration = (end - start).total_seconds() / 60
+    
+    return max(20, int(duration))
+
+@register.filter
+def get_range(n):
+    """Para iterar: {% for hour in 24|get_range %}"""
+    return range(int(n))
+
+# ============================================
+# TEMPLATE TAGS PERSONALIZADOS
+# ============================================
+
+@register.simple_tag
+def get_day_events_with_columns(period):
+    """
+    Obtiene eventos del día y calcula columnas para eventos superpuestos.
+    Retorna lista de dicts con: occurrence, column, total_columns
+    
+    IMPORTANTE: Para eventos multi-día, solo muestra la porción del día actual.
+    """
+    # Obtener todas las occurrences del período
+    occurrences = list(period.occurrences)
+    
+    # Inicio y fin del día actual (sin horas)
+    day_start = period.start.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + datetime.timedelta(days=1)
+    
+    # Ajustar occurrences multi-día para que solo muestren la porción del día actual
+    adjusted_occurrences = []
+    for occ in occurrences:
+        # Convertir a timezone local si es necesario
+        occ_start = timezone.localtime(occ.start) if timezone.is_aware(occ.start) else occ.start
+        occ_end = timezone.localtime(occ.end) if timezone.is_aware(occ.end) else occ.end
+        
+        # Ajustar inicio si empieza antes del día actual
+        adjusted_start = max(occ_start, day_start)
+        
+        # Ajustar fin si termina después del día actual
+        adjusted_end = min(occ_end, day_end)
+        
+        # Crear copia con fechas ajustadas
+        class AdjustedOccurrence:
+            def __init__(self, original_occ, adj_start, adj_end):
+                self.original = original_occ
+                self.start = adj_start
+                self.end = adj_end
+                # Copiar todos los atributos del original
+                self.title = original_occ.title
+                self.description = original_occ.description
+                self.event = original_occ.event
+                self.cancelled = original_occ.cancelled
+                self.id = original_occ.id
+        
+        adjusted_occurrences.append(AdjustedOccurrence(occ, adjusted_start, adjusted_end))
+    
+    # Ordenar por hora de inicio
+    adjusted_occurrences.sort(key=lambda x: x.start)
+    
+    if not adjusted_occurrences:
+        return []
+    
+    result = []
+    
+    # Para cada evento, calcular su grupo de superposición
+    for i, occ in enumerate(adjusted_occurrences):
+        # Encontrar todos los eventos que se superponen con este
+        group = [i]
+        
+        for j, other_occ in enumerate(adjusted_occurrences):
+            if i != j and (occ.start < other_occ.end and occ.end > other_occ.start):
+                group.append(j)
+        
+        # Ordenar grupo
+        group.sort()
+        
+        # Calcular columna dentro del grupo
+        column = group.index(i)
+        total_columns = len(group)
+        
+        result.append({
+            'occurrence': occ,
+            'column': column,
+            'total_columns': total_columns
+        })
+    
+    return result
+
+@register.simple_tag
+def get_day_slots(period, start_hour=8, end_hour=20, increment=30):
+    """
+    Genera slots de tiempo para un día con sus ocurrencias.
+    Basado en _cook_slots pero retorna data en lugar de renderizar template.
+    """
+    tdiff = datetime.timedelta(minutes=increment)
+    
+    # Crear el período completo del día desde start_hour hasta end_hour
+    start_time = period.start.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    
+    # Si end_hour es 24, usar 23:59:59 del mismo día
+    if end_hour >= 24:
+        end_time = period.start.replace(hour=23, minute=59, second=59, microsecond=999999)
+    else:
+        end_time = period.start.replace(hour=end_hour, minute=0, second=0, microsecond=0)
+    
+    num = int((end_time - start_time).total_seconds()) // int(tdiff.total_seconds())
+    
+    slots = []
+    current = start_time
+    
+    for i in range(num):
+        slot_end = current + tdiff
+        # Usar el método get_time_slot del period para obtener las ocurrencias correctas
+        time_slot = period.get_time_slot(current, slot_end)
+        
+        slots.append({
+            'start': current,
+            'end': slot_end,
+            'occurrences': time_slot.occurrences
+        })
+        current = slot_end
+    
+    return slots
+
+# ============================================
+# INCLUSION TAGS ORIGINALES DE DJANGO-SCHEDULER
+# ============================================
 
 @register.inclusion_tag("schedule/_month_table.html", takes_context=True)
 def month_table(context, calendar, month, size="regular", shift=None):
@@ -105,6 +269,10 @@ def create_event_url(context, calendar, slot):
     return context
 
 
+# ============================================
+# TEMPLATE NODES
+# ============================================
+
 class CalendarNode(template.Node):
     def __init__(self, content_object, distinction, context_var, create=False):
         self.content_object = template.Variable(content_object)
@@ -184,6 +352,10 @@ def get_or_create_calendar(parser, token):
     return CreateCalendarNode(obj, distinction, context_var, name)
 
 
+# ============================================
+# SIMPLE TAGS
+# ============================================
+
 @register.simple_tag
 def querystring_for_date(date, num=6):
     qs_parts = [
@@ -255,6 +427,15 @@ def detail(occurrence):
     return context
 
 
+@register.simple_tag
+def hash_occurrence(occ):
+    return "{}_{}".format(occ.start.strftime("%Y%m%d%H%M%S"), occ.event.id)
+
+
+# ============================================
+# HELPER FUNCTIONS
+# ============================================
+
 def _cook_slots(period, increment):
     """
     Prepare slots to be displayed on the left hand side
@@ -272,8 +453,3 @@ def _cook_slots(period, increment):
         slots.append(sl)
         s = s + tdiff
     return slots
-
-
-@register.simple_tag
-def hash_occurrence(occ):
-    return "{}_{}".format(occ.start.strftime("%Y%m%d%H%M%S"), occ.event.id)

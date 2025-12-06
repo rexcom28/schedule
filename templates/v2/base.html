@@ -1,0 +1,952 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema CFDI{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <script src="{% static 'tailwind.css' %}"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Icons (Heroicons) -->
+    <script src="https://cdn.jsdelivr.net/npm/heroicons@2.0.18/20/solid/index.js"></script>
+    
+    <style>
+        
+        .loading-spinner {
+            border: 2px solid #f3f4f6;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* AGREGAR ESTOS ESTILOS FALTANTES */
+        .form-input, .form-select {
+            display: block;
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #fff;
+            color: #374151;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            ring: 2px solid #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        .form-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+
+        .btn-primary:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+
+        /* ESPECÍFICO PARA EL PROBLEMA DEL SELECT */
+        select.form-select, 
+        select.form-select option {
+            color: #1f2937 !important;
+            background-color: #ffffff !important;
+        }
+
+        /* Forzar visibilidad en todos los navegadores */
+        select, option {
+            color: #000000 !important;
+            background-color: #ffffff !important;
+        }
+
+        /* Estilos para notificaciones */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            z-index: 1000;
+            max-width: 400px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background-color: #10b981;
+        }
+
+        .notification.error {
+            background-color: #ef4444;
+        }
+
+        .notification.warning {
+            background-color: #f59e0b;
+        }
+
+        .notification.info {
+            background-color: #3b82f6;
+        }
+
+        /* ESTILOS PARA EL SIDEBAR (DESKTOP) */
+        .sidebar-desktop {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            width: 280px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 40;
+            transition: transform 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .sidebar-desktop.closed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #eaeaea;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            background: white;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .user-details h5 {
+            margin: 0;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .user-details small {
+            color: #6c757d;
+            font-size: 0.8rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #6c757d;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .close-btn:hover {
+            color: #3b82f6;
+            transform: rotate(90deg);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 10px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-nav li {
+            margin: 0;
+        }
+
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            padding: 14px 20px;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.2s;
+            position: relative;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-nav a:hover {
+            background-color: #f5f7fb;
+            color: #3b82f6;
+            border-left-color: #3b82f6;
+        }
+
+        .sidebar-nav .icon {
+            margin-right: 12px;
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Estilos para submenús */
+        .has-submenu > a {
+            justify-content: space-between;
+        }
+
+        .submenu-arrow {
+            transition: transform 0.3s ease;
+            font-size: 12px;
+            margin-left: auto;
+        }
+
+        .has-submenu.active > a .submenu-arrow {
+            transform: rotate(180deg);
+        }
+
+        .submenu {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: #f5f7fb;
+            opacity: 0;
+        }
+
+        .has-submenu.active > .submenu {
+            max-height: 500px;
+            opacity: 1;
+        }
+
+        .submenu li {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .submenu a {
+            padding: 12px 20px 12px 50px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .submenu a:hover {
+            background-color: #e9ecef;
+            color: #3b82f6;
+        }
+
+        /* Submenús anidados */
+        .submenu .has-submenu > a {
+            padding-left: 50px;
+        }
+
+        .submenu .submenu {
+            background: #e9ecef;
+        }
+
+        .submenu .submenu li {
+            border-left: 3px solid #28a745;
+        }
+
+        .submenu .submenu a {
+            padding-left: 70px;
+            font-size: 0.85em;
+        }
+
+        .submenu .submenu a:hover {
+            background-color: #dee2e6;
+        }
+
+        .sidebar-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #eaeaea;
+            background: white;
+            text-align: center;
+        }
+
+        .sidebar-footer p {
+            margin: 0;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .sidebar-footer small {
+            color: #adb5bd;
+        }
+
+        /* Botón para abrir/cerrar sidebar en desktop - MODIFICADO */
+        .sidebar-toggle-desktop {
+            background: #3b82f6;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: none; /* Cambiado: oculto por defecto */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        /* Mostrar solo cuando el sidebar está cerrado */
+        .sidebar-desktop.closed ~ .main-content .sidebar-toggle-desktop {
+            display: flex;
+        }
+
+        .sidebar-toggle-desktop:hover {
+            background: #2563eb;
+            transform: scale(1.05);
+        }
+
+        .sidebar-toggle-desktop span {
+            width: 18px;
+            height: 2px;
+            background: white;
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+
+        /* ESTILOS PARA EL SLIDER MENU (MOBILE) */
+        .slider-menu {
+            position: fixed;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100vh;
+            z-index: 9999;
+            transition: left 0.3s ease;
+        }
+
+        .slider-menu.active {
+            left: 0;
+        }
+
+        .slider-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+        }
+
+        .slider-content {
+            position: relative;
+            width: 280px;
+            height: 100%;
+            background: white;
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            z-index: 10000;
+            overflow-y: auto;
+        }
+
+        /* Botón de hamburguesa para móvil - MODIFICADO */
+        .menu-toggle-btn {
+            background: #3b82f6;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: none; /* Cambiado: oculto por defecto */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .menu-toggle-btn:hover {
+            background: #2563eb;
+            transform: scale(1.05);
+        }
+
+        .menu-toggle-btn span {
+            width: 22px;
+            height: 2px;
+            background: white;
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .menu-toggle-btn.active span:nth-child(1) {
+            transform: rotate(45deg) translate(6px, 6px);
+        }
+
+        .menu-toggle-btn.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .menu-toggle-btn.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(6px, -6px);
+        }
+
+        /* Ajustes de layout para el contenido principal */
+        .main-content {
+            margin-left: 280px;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content.full-width {
+            margin-left: 0;
+        }
+
+        /* Responsive - MODIFICADO */
+        @media (max-width: 768px) {
+            .sidebar-desktop {
+                display: none;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .menu-toggle-btn {
+                display: flex; /* Mostrar solo en móvil */
+            }
+            
+            .sidebar-toggle-desktop {
+                display: none !important; /* Ocultar en móvil */
+            }
+        }
+
+        @media (min-width: 769px) {
+            .slider-menu {
+                display: none;
+            }
+            
+            /* Mostrar botón de desktop solo cuando el sidebar está cerrado */
+            .sidebar-desktop:not(.closed) ~ .main-content .sidebar-toggle-desktop {
+                display: none;
+            }
+            
+            .sidebar-desktop.closed ~ .main-content .sidebar-toggle-desktop {
+                display: flex;
+            }
+        }
+
+        /* Animaciones suaves */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .sidebar-nav li, .slider-nav li {
+            animation: slideIn 0.3s ease forwards;
+            opacity: 0;
+        }
+
+        .sidebar-nav li:nth-child(1), .slider-nav li:nth-child(1) { animation-delay: 0.05s; }
+        .sidebar-nav li:nth-child(2), .slider-nav li:nth-child(2) { animation-delay: 0.1s; }
+        .sidebar-nav li:nth-child(3), .slider-nav li:nth-child(3) { animation-delay: 0.15s; }
+        .sidebar-nav li:nth-child(4), .slider-nav li:nth-child(4) { animation-delay: 0.2s; }
+        .sidebar-nav li:nth-child(5), .slider-nav li:nth-child(5) { animation-delay: 0.25s; }
+        .sidebar-nav li:nth-child(6), .slider-nav li:nth-child(6) { animation-delay: 0.3s; }
+
+        /* Estilos adicionales para mejor responsividad */
+        .navbar-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+        
+        .navbar-links {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Mejoras para botones en formularios */
+        .form-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        
+        .form-actions button {
+            flex-shrink: 0;
+            min-width: max-content;
+        }
+        
+    </style>
+    {% block extra_css %}
+    
+    {% endblock extra_css %}
+</head>
+<body class="h-full">
+    <!-- Sidebar para Desktop -->
+    <div id="sidebar-desktop" class="sidebar-desktop">
+        <div class="sidebar-header">
+            <div class="user-info">
+                {% if user.is_authenticated %}
+                <div class="avatar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-5.5-2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 12a5.99 5.99 0 00-4.793 2.39A6.483 6.483 0 0010 16.5a6.483 6.483 0 004.793-2.11A5.99 5.99 0 0010 12z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="user-details">
+                    <h5>{{ user.username }}</h5>
+                    <small>{{ user.email }}</small>
+                </div>
+                {% else %}
+                <h5>Menú</h5>
+                {% endif %}
+            </div>
+            <button class="close-btn" onclick="toggleDesktopSidebar()">&times;</button>
+        </div>
+        <nav class="sidebar-nav">
+            <ul>
+                <!-- Usuarios regulares (no AutofacturaUsers) -->
+                {% if not user.is_anonymous and 'AutofacturaUsers' not in user.groups.all|join:', ' %}
+                    {% include 'Comprobantes/pagos/partials/menu_standard_users.html' with menu_type='desktop' %}
+                {% endif %}
+                
+                <!-- Usuarios autenticados -->
+                {% if user.is_authenticated %}
+                    {% include 'Comprobantes/pagos/partials/menu_auth_common.html' with menu_type='desktop' %}
+                {% else %}
+                    <!-- Usuarios no autenticados -->
+                    {% include 'Comprobantes/pagos/partials/menu_unauth.html' with menu_type='desktop' %}
+                {% endif %}
+                
+                <!-- Items comunes para todos -->
+                {% include 'Comprobantes/pagos/partials/menu_common.html' with menu_type='desktop' %}
+            </ul>
+        </nav>
+        <div class="sidebar-footer">
+            <p>Sistema CFDI</p>
+            <small>Versión 2.0</small>
+        </div>
+    </div>
+
+    <!-- Slider Menu para Mobile -->
+    <div id="slider-menu" class="slider-menu">
+        <div class="slider-overlay" onclick="closeSliderMenu()"></div>
+        <div class="slider-content">
+            <div class="sidebar-header">
+                <div class="user-info">
+                    {% if user.is_authenticated %}
+                    <div class="avatar">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-5.5-2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 12a5.99 5.99 0 00-4.793 2.39A6.483 6.483 0 0010 16.5a6.483 6.483 0 004.793-2.11A5.99 5.99 0 0010 12z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="user-details">
+                        <h5>{{ user.username }}</h5>
+                        <small>{{ user.email }}</small>
+                    </div>
+                    {% else %}
+                    <h5>Menú</h5>
+                    {% endif %}
+                </div>
+                <button class="close-btn" onclick="closeSliderMenu()">&times;</button>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <!-- Usuarios regulares (no AutofacturaUsers) -->
+                    {% if not user.is_anonymous and 'AutofacturaUsers' not in user.groups.all|join:', ' %}
+                    
+                        {% include 'Comprobantes/pagos/partials/menu_standard_users.html' with menu_type='mobile' %}
+                    
+                    {% endif %}
+                    
+
+                    <!-- Usuarios autenticados -->
+                    {% if user.is_authenticated %}
+                        {% include 'Comprobantes/pagos/partials/menu_auth_common.html' with menu_type='mobile' %}
+                    {% else %}
+                        <!-- Usuarios no autenticados -->
+                        {% include 'Comprobantes/pagos/partials/menu_unauth.html' with menu_type='mobile' %}
+                    {% endif %}
+                    
+                    <!-- Items comunes para todos Contact, About, etc -->
+                    {% include 'Comprobantes/pagos/partials/menu_common.html' with menu_type='mobile' %}
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <p>Sistema CFDI</p>
+                <small>Versión 2.0</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <div id="main-content" class="main-content">
+        <!-- Navbar -->
+        <nav class="bg-white shadow-sm border-b border-gray-200 py-4 px-6">
+            <div class="navbar-container">
+                <div class="flex items-center gap-4">
+                    <!-- Botón hamburguesa para móvil -->
+                    <button id="menu-toggle-btn" class="menu-toggle-btn" onclick="toggleSliderMenu()">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    
+                    <!-- Logo o título -->
+                    
+                    <div class="flex items-center">
+                        <h1 class="text-xl font-bold text-gray-800"><a href="{% url 'dashboard' %}">Dashboard</a></h1>
+                        
+                        <h1 class="ml-4 text-xl font-bold text-gray-800"><a href="{% url 'calendar_list' %}">Calendars</a></h1>
+                    </div>
+                </div>
+                
+                <div class="navbar-links">
+                    <!-- Botón para abrir/cerrar sidebar en desktop -->
+                    <button class="sidebar-toggle-desktop" onclick="toggleDesktopSidebar()">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    
+                    <!-- Información del usuario -->
+                    {% if user.is_authenticated %}
+                    <div class="navbar-user">
+                        <span class="text-sm text-gray-700 hidden sm:inline">Hola, {{ user.username }}</span>
+                        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium">
+                            {{ user.username|first|upper }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+
+        <!-- Contenido de la página -->
+        <main class="flex-1 p-6">
+            <!-- BLOQUE DE MENSAJES DJANGO - AGREGAR ESTO -->
+            {% if messages %}
+            <div class="messages-container mb-4">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} {% if message.tags == 'error' %}alert-danger{% elif message.tags == 'success' %}alert-success{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} p-4 rounded-lg border">
+                    {{ message }}
+                    <button type="button" class="float-right" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <!-- FIN BLOQUE MENSAJES -->
+             
+            {% block content %}
+            <!-- El contenido específico de cada página irá aquí -->
+            {% endblock content %}
+        </main>
+    </div>
+
+    <!-- Notificaciones -->
+    <div id="notification" class="notification hidden"></div>
+
+    <script>
+        // Función para mostrar notificaciones
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} hidden`;
+            
+            // Mostrar notificación
+            setTimeout(() => {
+                notification.classList.remove('hidden');
+                notification.classList.add('show');
+            }, 100);
+            
+            // Ocultar después de 5 segundos
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    notification.classList.add('hidden');
+                }, 300);
+            }, 5000);
+        }
+
+        // Función para alternar submenús
+        function toggleSubmenu(event, element) {
+            event.preventDefault();
+            const parent = element.parentElement;
+            parent.classList.toggle('active');
+        }
+
+        // Función para abrir/cerrar el slider menu (móvil)
+        function toggleSliderMenu() {
+            const sliderMenu = document.getElementById('slider-menu');
+            const menuToggleBtn = document.getElementById('menu-toggle-btn');
+            
+            sliderMenu.classList.toggle('active');
+            menuToggleBtn.classList.toggle('active');
+        }
+
+        // Función para cerrar el slider menu
+        function closeSliderMenu() {
+            const sliderMenu = document.getElementById('slider-menu');
+            const menuToggleBtn = document.getElementById('menu-toggle-btn');
+            
+            sliderMenu.classList.remove('active');
+            menuToggleBtn.classList.remove('active');
+        }
+
+        // Función para abrir/cerrar el sidebar en desktop
+        function toggleDesktopSidebar() {
+            const sidebar = document.getElementById('sidebar-desktop');
+            const mainContent = document.getElementById('main-content');
+            
+            sidebar.classList.toggle('closed');
+            mainContent.classList.toggle('full-width');
+        }
+
+        // Cerrar menús al hacer clic fuera de ellos
+        document.addEventListener('click', function(event) {
+            // Para el slider menu (móvil)
+            const sliderMenu = document.getElementById('slider-menu');
+            const menuToggleBtn = document.getElementById('menu-toggle-btn');
+            
+            if (sliderMenu.classList.contains('active') && 
+                !sliderMenu.contains(event.target) && 
+                !menuToggleBtn.contains(event.target)) {
+                closeSliderMenu();
+            }
+        });
+
+        // Mostrar mensajes de Django
+        document.addEventListener('DOMContentLoaded', function() {
+            // Buscar mensajes de Django en el DOM
+            const messages = document.querySelectorAll('.alert, .message, [class*="message"]');
+            messages.forEach(message => {
+                let type = 'info';
+                if (message.classList.contains('error') || message.classList.contains('danger')) {
+                    type = 'error';
+                } else if (message.classList.contains('success')) {
+                    type = 'success';
+                } else if (message.classList.contains('warning')) {
+                    type = 'warning';
+                }
+                
+                showNotification(message.textContent, type);
+                
+                // Ocultar el mensaje original después de un tiempo
+                setTimeout(() => {
+                    message.style.display = 'none';
+                }, 100);
+            });
+        });
+
+        // Manejar el estado del sidebar en diferentes tamaños de pantalla
+        function handleResponsiveSidebar() {
+            const sidebar = document.getElementById('sidebar-desktop');
+            const mainContent = document.getElementById('main-content');
+            
+            if (window.innerWidth <= 768) {
+                // En móvil, asegurarse de que el sidebar esté cerrado
+                sidebar.classList.add('closed');
+                mainContent.classList.add('full-width');
+            } else {
+                // En desktop, restaurar el estado anterior o abrir por defecto
+                const wasClosed = localStorage.getItem('sidebarClosed') === 'true';
+                if (wasClosed) {
+                    sidebar.classList.add('closed');
+                    mainContent.classList.add('full-width');
+                } else {
+                    sidebar.classList.remove('closed');
+                    mainContent.classList.remove('full-width');
+                }
+            }
+        }
+
+        // Guardar el estado del sidebar
+        document.getElementById('sidebar-desktop').addEventListener('transitionend', function() {
+            if (window.innerWidth > 768) {
+                const isClosed = this.classList.contains('closed');
+                localStorage.setItem('sidebarClosed', isClosed);
+            }
+        });
+
+        // Inicializar al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            handleResponsiveSidebar();
+            
+            // También manejar cambios de tamaño de ventana
+            window.addEventListener('resize', handleResponsiveSidebar);
+        });
+
+        // Función para mostrar/ocultar contraseña
+        function togglePasswordVisibility(inputId) {
+            const passwordInput = document.getElementById(inputId);
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+            } else {
+                passwordInput.type = 'password';
+            }
+        }
+
+        // Función para mostrar spinner de carga en botones
+        function setButtonLoading(button, isLoading) {
+            if (isLoading) {
+                button.disabled = true;
+                const originalText = button.innerHTML;
+                button.setAttribute('data-original-text', originalText);
+                button.innerHTML = '<div class="loading-spinner"></div> Cargando...';
+            } else {
+                button.disabled = false;
+                const originalText = button.getAttribute('data-original-text');
+                if (originalText) {
+                    button.innerHTML = originalText;
+                }
+            }
+        }
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN'
+            }).format(amount || 0);
+        }
+
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleDateString('es-MX');
+        }
+
+        // API helper
+        async function apiCall(url, options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                }
+            };
+
+            const response = await fetch(url, { ...defaultOptions, ...options });
+            
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
+                throw error;
+            }
+            
+            return response.json();
+        }
+        function getCSRFToken() {
+                const name = 'csrftoken';
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+        // Inicializar Alpine.js para elementos globales
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('notification', () => ({
+                show: false,
+                message: '',
+                type: 'info'
+            }));
+        });
+    </script>
+    <Script>
+        function buildUrl(baseUrl, id) {
+            return `${baseUrl}/${id}/`.replace(/\/\/+/g, '/');
+        }
+    </Script>
+    {% block extra_js %}
+    {% endblock extra_js %}
+</body>
+</html>

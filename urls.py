@@ -20,13 +20,17 @@ from schedule.views import (
     api_move_or_resize_by_code,
     api_occurrences,
     api_select_create,
+    CalendarList
 )
 
 urlpatterns = [
-    re_path(r"^$", ListView.as_view(model=Calendar), name="calendar_list"),
+    # re_path(r"^$", ListView.as_view(model=Calendar), name="calendar_list"),
+    re_path(r"^$", CalendarList.as_view(model=Calendar), name="calendar_list"),
+    
     re_path(
         r"^calendar/year/(?P<calendar_slug>[-\w]+)/$",
-        CalendarByPeriodsView.as_view(template_name="schedule/calendar_year.html"),
+        # CalendarByPeriodsView.as_view(template_name="schedule/calendar_year.html"),
+        CalendarByPeriodsView.as_view(template_name="v2/calendar_year.html"),
         name="year_calendar",
         kwargs={"period": Year},
     ),
@@ -44,21 +48,26 @@ urlpatterns = [
         name="compact_calendar",
         kwargs={"period": Month},
     ),
+    
     re_path(
         r"^calendar/month/(?P<calendar_slug>[-\w]+)/$",
-        CalendarByPeriodsView.as_view(template_name="schedule/calendar_month.html"),
+        # CalendarByPeriodsView.as_view(template_name="schedule/calendar_month.html"),
+        CalendarByPeriodsView.as_view(template_name="v2/calendar_month.html"),
         name="month_calendar",
         kwargs={"period": Month},
     ),
+    
     re_path(
         r"^calendar/week/(?P<calendar_slug>[-\w]+)/$",
-        CalendarByPeriodsView.as_view(template_name="schedule/calendar_week.html"),
+        # CalendarByPeriodsView.as_view(template_name="schedule/calendar_week.html"),
+        CalendarByPeriodsView.as_view(template_name="v2/calendar_week.html"),
         name="week_calendar",
         kwargs={"period": Week},
     ),
     re_path(
         r"^calendar/daily/(?P<calendar_slug>[-\w]+)/$",
-        CalendarByPeriodsView.as_view(template_name="schedule/calendar_day.html"),
+        # CalendarByPeriodsView.as_view(template_name="schedule/calendar_day.html"),
+        CalendarByPeriodsView.as_view(template_name="v2/calendar_day.html"),
         name="day_calendar",
         kwargs={"period": Day},
     ),
@@ -72,6 +81,7 @@ urlpatterns = [
         FullCalendarView.as_view(),
         name="fullcalendar",
     ),
+    
     # Event Urls
     re_path(
         r"^event/create/(?P<calendar_slug>[-\w]+)/$",
@@ -89,6 +99,7 @@ urlpatterns = [
         DeleteEventView.as_view(),
         name="delete_event",
     ),
+    
     # urls for already persisted occurrences
     re_path(
         r"^occurrence/(?P<event_id>\d+)/(?P<occurrence_id>\d+)/$",

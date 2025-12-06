@@ -1,0 +1,298 @@
+{% extends 'v2/base.html' %}
+{% load scheduletags i18n %}
+
+{% block extra_css %}
+<style>
+/* Grid del año */
+.year-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Cada mes */
+.month-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+}
+
+.month-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.month-header {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    padding: 12px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.month-header:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+/* Mini calendario del mes */
+.mini-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: #e5e7eb;
+}
+
+.mini-day-header {
+    background: #f9fafb;
+    color: #6b7280;
+    padding: 4px;
+    text-align: center;
+    font-size: 0.625rem;
+    font-weight: 600;
+}
+
+.mini-day {
+    background: white;
+    padding: 6px 2px;
+    text-align: center;
+    font-size: 0.75rem;
+    min-height: 32px;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.mini-day:hover {
+    background: #f3f4f6;
+    cursor: pointer;
+}
+
+.mini-day.other-month {
+    background: #f9fafb;
+    color: #d1d5db;
+}
+
+.mini-day.today {
+    background: #eff6ff;
+    color: #2563eb;
+    font-weight: 700;
+}
+
+.mini-day.has-events {
+    background: #dbeafe;
+    font-weight: 600;
+}
+
+.mini-day.has-events::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background: #3b82f6;
+    border-radius: 50%;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .year-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+    }
+    
+    .month-header {
+        padding: 8px;
+        font-size: 0.75rem;
+    }
+    
+    .mini-day {
+        padding: 4px 2px;
+        font-size: 0.625rem;
+        min-height: 24px;
+    }
+    
+    .mini-day-header {
+        font-size: 0.5rem;
+        padding: 2px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Navegación superior -->
+    <div class="flex flex-wrap gap-2 justify-center mb-6">
+        <a href="{% url 'day_calendar' calendar.slug %}{% querystring_for_date period.start 3 %}" 
+           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base">
+            <span class="hidden sm:inline">{% trans "Day" %}</span>
+            <span class="sm:hidden">Día</span>
+        </a>
+        <a href="{% url 'week_calendar' calendar.slug %}{% querystring_for_date period.start 3 %}" 
+           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base">
+            <span class="hidden sm:inline">{% trans "Week" %}</span>
+            <span class="sm:hidden">Sem</span>
+        </a>
+        <a href="{% url 'month_calendar' calendar.slug %}{% querystring_for_date period.start 2 %}" 
+           class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base">
+            <span class="hidden sm:inline">{% trans "Month" %}</span>
+            <span class="sm:hidden">Mes</span>
+        </a>
+    </div>
+
+    <!-- Encabezado con título del calendario -->
+    <div class="text-center mb-8">
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-6">{{ calendar.name }}</h1>
+        
+        <!-- Navegación año -->
+        <div class="flex items-center justify-center gap-4 sm:gap-8 mb-4 flex-wrap">
+            <a href="{% url 'year_calendar' calendar.slug %}?year={{ period.start.year|add:"-1" }}" 
+               class="text-2xl sm:text-3xl text-blue-600 hover:text-blue-700 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 sm:w-8 sm:h-8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+            </a>
+            
+            <div class="text-3xl sm:text-4xl font-bold text-gray-900 min-w-[120px]">
+                {{ period.start.year }}
+            </div>
+            
+            <a href="{% url 'year_calendar' calendar.slug %}?year={{ period.start.year|add:"1" }}" 
+               class="text-2xl sm:text-3xl text-blue-600 hover:text-blue-700 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 sm:w-8 sm:h-8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+            </a>
+        </div>
+        
+        <!-- Botón "Hoy" -->
+        <div class="mt-4">
+            <a href="{% url 'year_calendar' calendar.slug %}" 
+               class="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base">
+                {% trans "This Year" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Grid de 12 meses -->
+    <div class="year-grid">
+        {% for month_period in period.get_months %}
+        <div class="month-card">
+            <!-- Header del mes (clickeable) -->
+            <a href="{% url 'month_calendar' calendar.slug %}?year={{ month_period.start.year }}&month={{ month_period.start.month }}" 
+               class="month-header block">
+                {{ month_period.start|date:"F Y" }}
+            </a>
+            
+            <!-- Mini calendario -->
+            <div class="mini-calendar">
+                <!-- Headers de días -->
+                <div class="mini-day-header">D</div>
+                <div class="mini-day-header">L</div>
+                <div class="mini-day-header">M</div>
+                <div class="mini-day-header">M</div>
+                <div class="mini-day-header">J</div>
+                <div class="mini-day-header">V</div>
+                <div class="mini-day-header">S</div>
+                
+                <!-- Días del mes -->
+                {% for week in month_period.get_weeks %}
+                    {% for day in week.get_days %}
+                        {% now "Y-m-d" as today %}
+                        <a href="{% url 'day_calendar' calendar.slug %}?year={{ day.start.year }}&month={{ day.start.month }}&day={{ day.start.day }}"
+                           class="mini-day 
+                                  {% if day.start.month != month_period.start.month %}other-month{% endif %}
+                                  {% if day.start|date:'Y-m-d' == today %}today{% endif %}
+                                  {% if day.get_occurrences %}has-events{% endif %}"
+                           title="{% if day.get_occurrences %}{{ day.get_occurrences|length }} evento(s){% else %}Sin eventos{% endif %}">
+                            {{ day.start.day }}
+                        </a>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Resumen del año -->
+    <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Total Eventos</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ period.get_occurrences|length }}</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Meses Activos</p>
+                    <p class="text-3xl font-bold text-gray-900" x-data="{ count: 0 }" x-init="count = document.querySelectorAll('.has-events').length > 0 ? 12 : 0" x-text="Math.min(count, 12)">0</p>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Días con Eventos</p>
+                    <p class="text-3xl font-bold text-gray-900" x-data="{ count: 0 }" x-init="count = document.querySelectorAll('.has-events').length" x-text="count">0</p>
+                </div>
+                <div class="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">Año</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ period.start.year }}</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leyenda -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-start space-x-2">
+            <svg class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div class="text-sm text-blue-800">
+                <p class="font-semibold mb-1">Navegación rápida</p>
+                <ul class="space-y-1 text-xs">
+                    <li>• Click en el <strong>nombre del mes</strong> para ver el calendario mensual</li>
+                    <li>• Click en un <strong>día específico</strong> para ver la vista diaria</li>
+                    <li>• Los días con <strong>punto azul</strong> tienen eventos programados</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
